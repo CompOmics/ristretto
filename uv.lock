@@ -1203,7 +1203,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ristretto"
+name = "ristretto-ms"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
