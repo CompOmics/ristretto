@@ -1,0 +1,49 @@
+name: Publish
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-python-package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Build
+        run: uv build --no-sources
+
+      - name: Upload dists
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish-python-package:
+    needs: build-python-package
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download dists
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release' || inputs.dry_run == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
