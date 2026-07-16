@@ -205,3 +205,23 @@ def test_fixture_end_to_end():
     q = r.psms["qvalue"].to_numpy()
     is_t = ~r.psms["is_decoy"].to_numpy(bool)
     assert int((is_t & (q <= 0.05)).sum()) > 0
+
+
+def test_run_col_disambiguates_colliding_spectrum_ids_across_runs():
+    # Two runs, both reusing the same spectrum_id values -- without run_col these would
+    # collapse into one competition/CV-fold group per shared spectrum_id.
+    df_a = _synthetic(seed=0).assign(run="runA")
+    df_b = _synthetic(seed=1).assign(run="runB")
+    df = pd.concat([df_a, df_b], ignore_index=True)
+
+    result = ristretto.rescore(df, model="lda", seed=42, run_col="run")
+
+    assert "run" in result.psms.columns
+    assert len(result.psms) == df[["run", "spectrum_id"]].drop_duplicates().shape[0]
+    assert len(result.psms) == 2 * df["spectrum_id"].nunique()
+
+
+def test_run_col_missing_raises():
+    df = _synthetic().assign(run="runA")
+    with pytest.raises(ValueError, match="missing required column"):
+        ristretto.rescore(df, model="lda", seed=42, run_col="does_not_exist")

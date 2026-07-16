@@ -25,6 +25,7 @@ def rescore(
     *,
     is_decoy_col: str = "is_decoy",
     spectrum_id_col: str = "spectrum_id",
+    run_col: str | None = None,
     peptidoform_col: str = "peptidoform",
     peptide_col: str | None = None,
     protein_col: str | None = None,
@@ -51,6 +52,14 @@ def rescore(
         Boolean column marking decoy PSMs.
     spectrum_id_col
         Column used to group PSMs by spectrum for CV splitting and competition.
+    run_col
+        Optional column identifying which input run/file a PSM came from. If given,
+        PSMs are grouped for CV splitting and competition by ``(run_col,
+        spectrum_id_col)`` instead of ``spectrum_id_col`` alone -- required for
+        multi-run input where native spectrum IDs (e.g. raw scan numbers) are not
+        globally unique across runs, or two different spectra from different runs
+        would otherwise be treated as one competition group. ``run_col`` is also
+        returned as an identifier column on ``result.psms``.
     peptidoform_col
         Column with a unique peptidoform key. Required; a peptidoform-level rollup
         is always returned, grouping PSMs by this column verbatim (no parsing or
@@ -109,6 +118,7 @@ def rescore(
         features,
         is_decoy_col,
         spectrum_id_col,
+        run_col,
         peptidoform_col,
         peptide_col,
         protein_col,
@@ -117,7 +127,7 @@ def rescore(
     )
 
     X, is_target, groups = _extract_arrays(
-        features, feature_cols, is_decoy_col, spectrum_id_col, model
+        features, feature_cols, is_decoy_col, spectrum_id_col, run_col, model
     )
 
     scores, iters, fold_weights = _cross_validate(
@@ -137,7 +147,14 @@ def rescore(
 
     id_cols = [
         c
-        for c in (spectrum_id_col, is_decoy_col, peptidoform_col, peptide_col, protein_col)
+        for c in (
+            spectrum_id_col,
+            run_col,
+            is_decoy_col,
+            peptidoform_col,
+            peptide_col,
+            protein_col,
+        )
         if c is not None
     ]
     psms, feature_weights = _assemble_output(
@@ -171,6 +188,7 @@ def evaluate(
     score_col: str = "score",
     is_decoy_col: str = "is_decoy",
     spectrum_id_col: str = "spectrum_id",
+    run_col: str | None = None,
     peptidoform_col: str = "peptidoform",
     peptide_col: str | None = None,
     protein_col: str | None = None,
@@ -195,6 +213,8 @@ def evaluate(
         Column with a precomputed per-PSM score. Higher = better.
     is_decoy_col, spectrum_id_col, peptidoform_col, peptide_col, protein_col, decoy_pattern
         Same meaning as in ``rescore()``.
+    run_col
+        Same meaning as in ``rescore()``.
     multi_rank_rescoring
         Same meaning as in ``rescore()``: if False (default), compete to one best PSM
         per spectrum before computing q-values/PEP/rollups. If True, keep every row.
@@ -210,6 +230,7 @@ def evaluate(
         features,
         is_decoy_col,
         spectrum_id_col,
+        run_col,
         peptidoform_col,
         peptide_col,
         protein_col,
@@ -220,7 +241,7 @@ def evaluate(
 
     scores = features[score_col].to_numpy(dtype=np.float64)
     is_target = ~features[is_decoy_col].to_numpy(dtype=bool)
-    groups = features[spectrum_id_col].to_numpy()
+    groups = _build_groups(features, spectrum_id_col, run_col)
 
     if not np.all(np.isfinite(scores)):
         raise ValueError("score_col contains NaN or inf")
@@ -231,7 +252,14 @@ def evaluate(
 
     id_cols = [
         c
-        for c in (spectrum_id_col, is_decoy_col, peptidoform_col, peptide_col, protein_col)
+        for c in (
+            spectrum_id_col,
+            run_col,
+            is_decoy_col,
+            peptidoform_col,
+            peptide_col,
+            protein_col,
+        )
         if c is not None
     ]
     psms, feature_weights = _assemble_output(features, keep, id_cols, [], scores[keep], q, pep, [])
@@ -257,10 +285,29 @@ def evaluate(
     )
 
 
+def _build_groups(
+    features: pd.DataFrame, spectrum_id_col: str, run_col: str | None
+) -> np.ndarray:
+    """
+    Build the spectrum-competition/CV-fold grouping key.
+
+    Combines ``run_col`` with ``spectrum_id_col`` when given, so two different physical
+    spectra from different runs that happen to share a native spectrum ID (e.g. raw scan
+    numbers restarting per file) aren't treated as one competition/CV-fold group.
+
+    """
+    if run_col is None:
+        return features[spectrum_id_col].to_numpy()
+    combined = list(zip(features[run_col], features[spectrum_id_col], strict=True))
+    codes, _ = pd.factorize(pd.Series(combined, dtype=object))
+    return codes
+
+
 def _validate_identifier_cols(
     features: pd.DataFrame,
     is_decoy_col: str,
     spectrum_id_col: str,
+    run_col: str | None,
     peptidoform_col: str,
     peptide_col: str | None,
     protein_col: str | None,
@@ -268,7 +315,7 @@ def _validate_identifier_cols(
 ) -> None:
     """Validate required/reserved identifier columns, shared by `rescore()` and `evaluate()`."""
     required = {is_decoy_col, spectrum_id_col, peptidoform_col}
-    required.update(c for c in (peptide_col, protein_col) if c is not None)
+    required.update(c for c in (run_col, peptide_col, protein_col) if c is not None)
     missing = required - set(features.columns)
     if missing:
         raise ValueError(f"features is missing required column(s): {sorted(missing)}")
@@ -290,6 +337,7 @@ def _validate_and_resolve_feature_cols(
     features: pd.DataFrame,
     is_decoy_col: str,
     spectrum_id_col: str,
+    run_col: str | None,
     peptidoform_col: str,
     peptide_col: str | None,
     protein_col: str | None,
@@ -301,6 +349,7 @@ def _validate_and_resolve_feature_cols(
         features,
         is_decoy_col,
         spectrum_id_col,
+        run_col,
         peptidoform_col,
         peptide_col,
         protein_col,
@@ -310,7 +359,7 @@ def _validate_and_resolve_feature_cols(
     if feature_cols is not None:
         return feature_cols
 
-    meta_cols = {is_decoy_col, spectrum_id_col, peptidoform_col, peptide_col, protein_col}
+    meta_cols = {is_decoy_col, spectrum_id_col, run_col, peptidoform_col, peptide_col, protein_col}
     meta_cols -= {None}
     resolved = [
         c
@@ -327,12 +376,13 @@ def _extract_arrays(
     feature_cols: list[str],
     is_decoy_col: str,
     spectrum_id_col: str,
+    run_col: str | None,
     model: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build the feature matrix, target labels, and spectrum groups; validate them."""
     X = features[feature_cols].to_numpy(dtype=np.float64)
     is_target = ~features[is_decoy_col].to_numpy(dtype=bool)
-    groups = features[spectrum_id_col].to_numpy()
+    groups = _build_groups(features, spectrum_id_col, run_col)
 
     if not np.all(np.isfinite(X)):
         raise ValueError("Feature matrix contains NaN or inf")

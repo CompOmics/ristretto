@@ -117,3 +117,42 @@ def test_evaluate_psms_columns_are_identifiers_only():
         "qvalue",
         "pep",
     ]
+
+
+def _multi_run(seed=0, n_spectra=200, per_spectrum=3):
+    """Two runs, both reusing the same spectrum_id values -- run_col must disambiguate."""
+    df_a = _synthetic(seed=seed, n_spectra=n_spectra, per_spectrum=per_spectrum)
+    df_b = _synthetic(seed=seed + 1, n_spectra=n_spectra, per_spectrum=per_spectrum)
+    df_a = df_a.assign(run="runA")
+    df_b = df_b.assign(run="runB")
+    return pd.concat([df_a, df_b], ignore_index=True)
+
+
+def test_evaluate_without_run_col_collapses_colliding_spectrum_ids():
+    """Documents the bug run_col fixes: without it, two runs sharing spectrum_id collide."""
+    df = _multi_run()
+    result = ristretto.evaluate(df)
+    # Competed as if there were only as many spectra as one run has, not both runs' worth.
+    assert len(result.psms) == df["spectrum_id"].nunique()
+    assert len(result.psms) < df[["run", "spectrum_id"]].drop_duplicates().shape[0]
+
+
+def test_evaluate_run_col_disambiguates_colliding_spectrum_ids():
+    df = _multi_run()
+    result = ristretto.evaluate(df, run_col="run")
+    # One survivor per (run, spectrum_id) pair, not collapsed by spectrum_id alone.
+    assert len(result.psms) == df[["run", "spectrum_id"]].drop_duplicates().shape[0]
+    assert len(result.psms) == 2 * df["spectrum_id"].nunique()
+
+
+def test_evaluate_run_col_appears_in_psms_output():
+    df = _multi_run()
+    result = ristretto.evaluate(df, run_col="run")
+    assert "run" in result.psms.columns
+    assert set(result.psms["run"]) == {"runA", "runB"}
+
+
+def test_evaluate_missing_run_col_raises():
+    df = _multi_run()
+    with pytest.raises(ValueError, match="missing required column"):
+        ristretto.evaluate(df, run_col="does_not_exist")
