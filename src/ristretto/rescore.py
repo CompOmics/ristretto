@@ -165,7 +165,99 @@ def rescore(
     )
 
 
-def _validate_and_resolve_feature_cols(
+def evaluate(
+    features: pd.DataFrame,
+    *,
+    score_col: str = "score",
+    is_decoy_col: str = "is_decoy",
+    spectrum_id_col: str = "spectrum_id",
+    peptidoform_col: str = "peptidoform",
+    peptide_col: str | None = None,
+    protein_col: str | None = None,
+    decoy_pattern: str | None = None,
+    multi_rank_rescoring: bool = False,
+) -> RescoreResult:
+    """
+    Competition, FDR, PEP, and rollups on an already-computed score column.
+
+    Runs the same competition/q-value/PEP/rollup logic as ``rescore()``, but skips the
+    semi-supervised training loop entirely. Useful for evaluating a score that was not
+    learned via ``rescore()`` -- e.g. a raw search-engine score, to get a baseline for
+    comparison against a later ``rescore()`` call on the same PSMs, using the exact same
+    competition/FDR machinery so the two are directly comparable.
+
+    Parameters
+    ----------
+    features
+        One row per PSM. Must contain ``score_col`` plus ``is_decoy_col``,
+        ``spectrum_id_col``, and ``peptidoform_col``.
+    score_col
+        Column with a precomputed per-PSM score. Higher = better.
+    is_decoy_col, spectrum_id_col, peptidoform_col, peptide_col, protein_col, decoy_pattern
+        Same meaning as in ``rescore()``.
+    multi_rank_rescoring
+        Same meaning as in ``rescore()``: if False (default), compete to one best PSM
+        per spectrum before computing q-values/PEP/rollups. If True, keep every row.
+
+    Returns
+    -------
+    RescoreResult
+        Same shape as ``rescore()``'s output. ``feature_weights`` is an empty
+        DataFrame and ``n_iterations`` is an empty list, since no training occurred.
+
+    """
+    _validate_identifier_cols(
+        features,
+        is_decoy_col,
+        spectrum_id_col,
+        peptidoform_col,
+        peptide_col,
+        protein_col,
+        decoy_pattern,
+    )
+    if score_col not in features.columns:
+        raise ValueError(f"features is missing score_col {score_col!r}")
+
+    scores = features[score_col].to_numpy(dtype=np.float64)
+    is_target = ~features[is_decoy_col].to_numpy(dtype=bool)
+    groups = features[spectrum_id_col].to_numpy()
+
+    if not np.all(np.isfinite(scores)):
+        raise ValueError("score_col contains NaN or inf")
+    if is_target.all() or (~is_target).all():
+        raise ValueError("features must contain both target and decoy PSMs")
+
+    keep, q, pep, pi0 = _compete_and_estimate_fdr(scores, is_target, groups, multi_rank_rescoring)
+
+    id_cols = [
+        c
+        for c in (spectrum_id_col, is_decoy_col, peptidoform_col, peptide_col, protein_col)
+        if c is not None
+    ]
+    psms, feature_weights = _assemble_output(features, keep, id_cols, [], scores[keep], q, pep, [])
+
+    peptidoforms, peptides, proteins = _build_rollups(
+        psms,
+        scores[keep],
+        is_target[keep],
+        peptidoform_col,
+        peptide_col,
+        protein_col,
+        decoy_pattern,
+    )
+
+    return RescoreResult(
+        psms=psms,
+        peptidoforms=peptidoforms,
+        peptides=peptides,
+        proteins=proteins,
+        pi0=pi0,
+        n_iterations=[],
+        feature_weights=feature_weights,
+    )
+
+
+def _validate_identifier_cols(
     features: pd.DataFrame,
     is_decoy_col: str,
     spectrum_id_col: str,
@@ -173,9 +265,8 @@ def _validate_and_resolve_feature_cols(
     peptide_col: str | None,
     protein_col: str | None,
     decoy_pattern: str | None,
-    feature_cols: list[str] | None,
-) -> list[str]:
-    """Validate required/reserved columns and resolve the feature column list."""
+) -> None:
+    """Validate required/reserved identifier columns, shared by `rescore()` and `evaluate()`."""
     required = {is_decoy_col, spectrum_id_col, peptidoform_col}
     required.update(c for c in (peptide_col, protein_col) if c is not None)
     missing = required - set(features.columns)
@@ -193,6 +284,28 @@ def _validate_and_resolve_feature_cols(
 
     if decoy_pattern is not None and protein_col is None:
         logger.warning("decoy_pattern is set but protein_col is None; it will be ignored")
+
+
+def _validate_and_resolve_feature_cols(
+    features: pd.DataFrame,
+    is_decoy_col: str,
+    spectrum_id_col: str,
+    peptidoform_col: str,
+    peptide_col: str | None,
+    protein_col: str | None,
+    decoy_pattern: str | None,
+    feature_cols: list[str] | None,
+) -> list[str]:
+    """Validate required/reserved columns and resolve the feature column list."""
+    _validate_identifier_cols(
+        features,
+        is_decoy_col,
+        spectrum_id_col,
+        peptidoform_col,
+        peptide_col,
+        protein_col,
+        decoy_pattern,
+    )
 
     if feature_cols is not None:
         return feature_cols
