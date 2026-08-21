@@ -85,14 +85,15 @@ def rescore(
         is stripped from every member; pairing then assumes target and decoy
         list members in the same order.
     model
-        ``"svm"`` uses LinearSVC with iterative Käll 2007 training. ``"lda"``
+        ``"svm"`` uses LinearSVC with an iterative refinement loop (Käll et al. 2007).
+        ``"lda"``
         uses single-pass Fisher LDA.
     n_folds
         Number of outer CV folds (spectrum-grouped).
     train_fdr
         q-value threshold for positive selection in the iterative loop.
     max_iter
-        Maximum Käll iterations. Ignored for ``model="lda"``.
+        Maximum refinement iterations. Ignored for ``model="lda"``.
     seed
         RNG seed for fold assignment and model training.
     n_jobs

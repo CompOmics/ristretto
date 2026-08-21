@@ -1,4 +1,4 @@
-"""Käll 2007 semi-supervised iterative target-selection loop."""
+"""Semi-supervised iterative refinement loop (Käll et al. 2007)."""
 
 from __future__ import annotations
 
@@ -105,7 +105,7 @@ def iterative_fit(
     max_iter: int = 10,
 ) -> FittedModel:
     """
-    Käll 2007 loop: relabel positives by q <= train_fdr, refit, repeat.
+    Refinement loop (Käll et al. 2007): relabel positives by q <= train_fdr, refit, repeat.
 
     Hyperparameters (e.g. the SVM class weight) are tuned only on the first
     iteration. If ``factory`` produces a tuning estimator (one exposing
@@ -134,13 +134,13 @@ def iterative_fit(
         negatives_mask = ~is_target
 
         if prev_positive is not None and np.array_equal(positives_mask, prev_positive):
-            logger.debug("Käll loop converged at iteration %d (positive set stable)", it)
+            logger.debug("Refinement loop converged at iteration %d (positive set stable)", it)
             break
         prev_positive = positives_mask.copy()
 
         if positives_mask.sum() == 0:
             raise RuntimeError(
-                "Käll loop: no targets passed train_fdr. Increase train_fdr "
+                "Refinement loop: no targets passed train_fdr. Increase train_fdr "
                 "or check input features."
             )
 
@@ -165,14 +165,14 @@ def iterative_fit(
             scores = -scores
         n_iters = it
         logger.debug(
-            "Käll iteration %d: %d positives at train_fdr=%.3g",
+            "Refinement iteration %d: %d positives at train_fdr=%.3g",
             it,
             int(positives_mask.sum()),
             train_fdr,
         )
 
     if n_iters == max_iter:
-        logger.debug("Käll loop hit max_iter=%d without a stable positive set", max_iter)
+        logger.debug("Refinement loop hit max_iter=%d without a stable positive set", max_iter)
 
     # Fallback: if the best single feature separates better than the trained
     # model on the training fold, use the feature direction instead.
