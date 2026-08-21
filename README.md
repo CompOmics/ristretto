@@ -7,12 +7,15 @@ Lean, fast PSM rescoring for proteomics, purpose-built for use in
 
 ## About
 
-ristretto is a small semi-supervised rescoring library in the tradition of
-[Percolator](https://doi.org/10.1038/nmeth.1664) and
-[mokapot](https://doi.org/10.1021/acs.jproteome.0c01010). Given a table of
-peptide-spectrum matches (PSMs) with rescoring features, a target/decoy label,
-and a spectrum identifier, it trains a classifier to separate correct from
-incorrect matches, then reports scores, q-values, and posterior error
+ristretto is a small, dependency-light reimplementation of the
+[Percolator](https://doi.org/10.1038/nmeth.1664) semi-supervised identification
+rescoring algorithm. Like [Mokapot](https://doi.org/10.1021/acs.jproteome.0c01010)
+it leverages the scikit-learn library for machine learning operations. However,
+as ristretto was written for leanness, it is not as flexible as Mokapot.
+
+Given a table of peptide-spectrum matches (PSMs) with rescoring features, a
+target/decoy label, and a spectrum identifier, it trains a classifier to separate
+correct from incorrect matches, then reports scores, q-values, and posterior error
 probabilities (PEPs) at the PSM, peptide, and protein level.
 
 Design goals:
@@ -97,7 +100,7 @@ peptide- and protein-level rollups.
 1. **Spectrum-grouped cross-validation.** PSMs are split into `n_folds` folds by
    spectrum, so all PSMs of a spectrum stay in one fold. Each fold is scored by a
    model trained on the others, preventing data leakage.
-2. **Model training.** For `svm`, the Käll 2007 loop: label targets below
+2. **Model training.** For `svm`, the refinement loop (Käll et al. 2007): label targets below
    `train_fdr` as positives and all decoys as negatives, fit, rescore, repeat
    until the positive set stabilizes. The SVM class weight is tuned once (first
    iteration) and reused. If no trained model beats the best single feature, that
@@ -125,7 +128,7 @@ peptide- and protein-level rollups.
 - `peptides`: peptide-level table, or None if no `peptide_col`.
 - `proteins`: protein-level table, or None if no `protein_col`.
 - `pi0`: estimated fraction of incorrect targets.
-- `n_iterations`: Käll iterations per fold.
+- `n_iterations`: refinement iterations per fold.
 - `feature_weights`: per-fold learned feature weights.
 
 ## Related projects

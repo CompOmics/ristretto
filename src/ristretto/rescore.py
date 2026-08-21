@@ -85,14 +85,15 @@ def rescore(
         is stripped from every member; pairing then assumes target and decoy
         list members in the same order.
     model
-        ``"svm"`` uses LinearSVC with iterative Käll 2007 training. ``"lda"``
+        ``"svm"`` uses LinearSVC with an iterative refinement loop (Käll et al. 2007).
+        ``"lda"``
         uses single-pass Fisher LDA.
     n_folds
         Number of outer CV folds (spectrum-grouped).
     train_fdr
         q-value threshold for positive selection in the iterative loop.
     max_iter
-        Maximum Käll iterations. Ignored for ``model="lda"``.
+        Maximum refinement iterations. Ignored for ``model="lda"``.
     seed
         RNG seed for fold assignment and model training.
     n_jobs
@@ -285,9 +286,7 @@ def evaluate(
     )
 
 
-def _build_groups(
-    features: pd.DataFrame, spectrum_id_col: str, run_col: str | None
-) -> np.ndarray:
+def _build_groups(features: pd.DataFrame, spectrum_id_col: str, run_col: str | None) -> np.ndarray:
     """
     Build the spectrum-competition/CV-fold grouping key.
 
@@ -423,7 +422,7 @@ def _cross_validate(
     for fold, (train_idx, test_idx) in enumerate(
         spectrum_grouped_kfold(groups, n_folds, seed), start=1
     ):
-        logger.info(
+        logger.debug(
             "Fold %d/%d: training on %d PSMs, scoring %d",
             fold,
             n_folds,
@@ -460,14 +459,14 @@ def _compete_and_estimate_fdr(
         keep = np.arange(len(scores))
     else:
         keep = _best_per_spectrum(scores, groups)
-        logger.info(
+        logger.debug(
             "Spectrum competition: %d PSMs -> %d best per spectrum", len(scores), len(keep)
         )
 
     kept_scores = scores[keep]
     kept_is_target = is_target[keep]
 
-    logger.info("Computing PSM-level q-values and PEPs")
+    logger.debug("Computing PSM-level q-values and PEPs")
     q = tdc_qvalues(kept_scores, kept_is_target)
     pep = nonparametric_pep(kept_scores, kept_is_target)
     pi0 = float((~kept_is_target).sum() / max(int(kept_is_target.sum()), 1))
@@ -514,25 +513,25 @@ def _build_rollups(
     decoy_pattern: str | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None]:
     """Compute the peptidoform (always), peptide (optional), and protein (optional) rollups."""
-    logger.info("Rolling up to peptidoform level on column %r", peptidoform_col)
+    logger.debug("Rolling up to peptidoform level on column %r", peptidoform_col)
     peptidoforms = rollup(psms, peptidoform_col, kept_scores, kept_is_target)
 
     peptides = None
     if peptide_col:
-        logger.info("Rolling up to peptide level on column %r", peptide_col)
+        logger.debug("Rolling up to peptide level on column %r", peptide_col)
         peptides = rollup(psms, peptide_col, kept_scores, kept_is_target)
 
     proteins = None
     if protein_col:
         if decoy_pattern:
-            logger.info(
+            logger.debug(
                 "Picked-protein rollup on column %r (decoy_pattern=%r)",
                 protein_col,
                 decoy_pattern,
             )
             proteins = picked_rollup(psms, protein_col, kept_scores, kept_is_target, decoy_pattern)
         else:
-            logger.info("Rolling up to protein level on column %r", protein_col)
+            logger.debug("Rolling up to protein level on column %r", protein_col)
             proteins = rollup(psms, protein_col, kept_scores, kept_is_target)
 
     return peptidoforms, peptides, proteins
