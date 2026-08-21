@@ -7,12 +7,15 @@ Lean, fast PSM rescoring for proteomics, purpose-built for use in
 
 ## About
 
-ristretto is a small semi-supervised rescoring library in the tradition of
-[Percolator](https://doi.org/10.1038/nmeth.1664) and
-[mokapot](https://doi.org/10.1021/acs.jproteome.0c01010). Given a table of
-peptide-spectrum matches (PSMs) with rescoring features, a target/decoy label,
-and a spectrum identifier, it trains a classifier to separate correct from
-incorrect matches, then reports scores, q-values, and posterior error
+ristretto is a small, dependency-light reimplementation of the
+[Percolator](https://doi.org/10.1038/nmeth.1664) semi-supervised identification
+rescoring algorithm. Like [Mokapot](https://doi.org/10.1021/acs.jproteome.0c01010)
+it leverages the scikit-learn library for machine learning operations. However,
+as ristretto was written for leanness, it is not as flexible as Mokapot.
+
+Given a table of peptide-spectrum matches (PSMs) with rescoring features, a
+target/decoy label, and a spectrum identifier, it trains a classifier to separate
+correct from incorrect matches, then reports scores, q-values, and posterior error
 probabilities (PEPs) at the PSM, peptide, and protein level.
 
 Design goals:
