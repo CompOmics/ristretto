@@ -286,9 +286,7 @@ def evaluate(
     )
 
 
-def _build_groups(
-    features: pd.DataFrame, spectrum_id_col: str, run_col: str | None
-) -> np.ndarray:
+def _build_groups(features: pd.DataFrame, spectrum_id_col: str, run_col: str | None) -> np.ndarray:
     """
     Build the spectrum-competition/CV-fold grouping key.
 
