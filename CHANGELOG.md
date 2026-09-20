@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `rank_within_groups()`: semi-supervised ranking of competing candidates within groups
+  (e.g. modification-site candidates of one spectrum), learning from known-negative
+  candidates such as decoy sites. Features are centred within group, a logistic regression
+  is fitted with group-wise cross-validation and positives are relabelled with the new top
+  per group until convergence. Returns a `RankResult` with per-candidate score and rank and
+  the fraction of groups whose top candidate is a known negative.
+
 ## [0.3.1] - 2026-08-21
 
 ### Fixed

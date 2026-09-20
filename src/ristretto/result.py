@@ -26,3 +26,16 @@ class RescoreResult:
     feature_weights: pd.DataFrame
     """Learned feature weights per fold (index = feature, columns = fold_1..k),
     in standardized-feature space. Fallback folds show a one-hot on the chosen feature."""
+
+
+@dataclass
+class RankResult:
+    """Within-group ranking returned by `rank_within_groups`."""
+
+    scores: pd.DataFrame
+    """``score`` and ``rank`` (1 = best in group) per candidate; row order and index preserved."""
+    negative_top_rate: float
+    """Fraction of groups whose top-ranked candidate is a known negative (a false-localisation
+    rate estimate when negatives are decoy sites and one decoy is generated per real site)."""
+    n_rounds: int
+    """Number of relabelling rounds run."""
