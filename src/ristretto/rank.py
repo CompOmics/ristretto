@@ -1,4 +1,4 @@
-"""Within-group candidate ranking with known negatives (e.g. decoy modification sites)."""
+"""Within-group candidate ranking with known negatives (e.g. impossible modification sites)."""
 
 from __future__ import annotations
 
@@ -32,11 +32,14 @@ def rank_within_groups(
     """
     Rank competing candidates within groups, learning from known-negative candidates.
 
-    Typical use: candidates of one spectrum that share sequence and modifications but differ
-    in the modification site, with decoy sites (the modification placed on residues it cannot
-    occupy) as known negatives. Features are centred within each group, so only differences
-    between candidates of the same group remain and group-level features (retention time,
-    precursor mass, charge) drop out.
+    Typical use: the competing candidate identifications of one spectrum, with candidates that
+    are wrong by construction as known negatives. In modification-aware rescoring a group holds
+    every explanation of a spectrum (the unmodified hit and each modification at each site) and
+    the negatives are the same modifications placed on residues they cannot occupy. Features are
+    centred within each group, so only differences between candidates of the same group remain
+    and group-level features (retention time, precursor mass, charge) drop out. Exclude features
+    that separate candidates by construction rather than by evidence, such as precursor mass
+    error when the candidates differ in mass.
 
     Semi-supervised: the top non-negative candidate per group under ``initial_score_col`` is
     the initial positive, known negatives are the negatives, all other candidates are
