@@ -65,3 +65,21 @@ def test_initial_score_alone_is_worse_than_ranker():
     )
     ranker_top = df.loc[result.scores["rank"] == 1, "kind"]
     assert (ranker_top == "true").mean() > (initial_top == "true").mean() + 0.2
+
+
+def test_feature_weights_identify_the_informative_feature():
+    df = _site_families(seed=2)
+    result = rank_within_groups(
+        df,
+        group_col="group",
+        negative_col="negative",
+        initial_score_col="initial",
+        feature_cols=["f0", "f1", "f2"],
+    )
+    weights = result.feature_weights
+    assert list(weights.index) == ["f0", "f1", "f2"]
+    assert list(weights.columns) == ["fold_1", "fold_2", "fold_3"]
+    mean = weights.mean(axis=1)
+    # f0 carries the site evidence; f1 is constant within a group and cancels when centred
+    assert mean["f0"] > 0 and mean.abs().idxmax() == "f0"
+    assert abs(mean["f1"]) < 0.01

@@ -72,8 +72,8 @@ def rank_within_groups(
     -------
     RankResult
         ``scores`` (index preserved) with ``score`` and ``rank`` (1 = best in group, over all
-        candidates including negatives), the fraction of groups whose top candidate is a known
-        negative, and the number of rounds run.
+        candidates including negatives), the learned feature weights per fold, the fraction of
+        groups whose top candidate is a known negative, and the number of rounds run.
 
     """
     groups = pd.factorize(features[group_col])[0]
@@ -96,10 +96,12 @@ def rank_within_groups(
     positives = top_per_group(np.nan_to_num(initial, nan=-np.inf))
     scores = np.zeros(len(features))
     n_rounds = 0
+    fold_weights: list[np.ndarray] = []
     for n_rounds in range(1, max_rounds + 1):
         y = np.full(len(features), -1)
         y[negative] = 0
         y[positives] = 1
+        fold_weights = []  # keep the final round's weights only
         for train_idx, test_idx in folds:
             train_idx = train_idx[(y[train_idx] >= 0) & trainable[train_idx]]
             scaler = StandardScaler().fit(X[train_idx])
@@ -107,6 +109,7 @@ def rank_within_groups(
                 scaler.transform(X[train_idx]), y[train_idx]
             )
             scores[test_idx] = est.decision_function(scaler.transform(X[test_idx]))
+            fold_weights.append(np.asarray(est.coef_, dtype=np.float64).ravel())
         new_positives = top_per_group(scores)
         changed = np.mean(new_positives != positives)
         positives = new_positives
@@ -125,6 +128,10 @@ def rank_within_groups(
     )
     return RankResult(
         scores=pd.DataFrame({"score": scores, "rank": rank}, index=features.index),
+        feature_weights=pd.DataFrame(
+            {f"fold_{i}": w for i, w in enumerate(fold_weights, start=1)},
+            index=pd.Index(feature_cols, name="feature"),
+        ),
         negative_top_rate=negative_top_rate,
         n_rounds=n_rounds,
     )

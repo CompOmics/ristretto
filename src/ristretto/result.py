@@ -34,6 +34,10 @@ class RankResult:
 
     scores: pd.DataFrame
     """``score`` and ``rank`` (1 = best in group) per candidate; row order and index preserved."""
+    feature_weights: pd.DataFrame
+    """Learned feature weights per fold (index = feature, columns = fold_1..k), in
+    within-group-centred, standardized-feature space. A positive weight means that a higher
+    value than the group average marks the better candidate."""
     negative_top_rate: float
     """Fraction of groups whose top-ranked candidate is a known negative (a false-localisation
     rate estimate when negatives are decoy sites and one decoy is generated per real site)."""
