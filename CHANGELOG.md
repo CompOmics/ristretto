@@ -20,24 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- `tdc_qvalues()` no longer gives PSMs with identical scores different,
-  order-dependent q-values. Previously each tied PSM was scored from the
-  partial target/decoy counts implied by its arbitrary position within the
-  tie, letting low-cardinality features (e.g. missed-cleavage count, or a raw
-  search-engine score with many repeated values) inflate PSM-level FDR passes
-  by chance and destabilize the refinement loop's positive-set relabeling.
-  Ties are now grouped and assigned one shared, fully-accumulated FDR/q-value
-  per block, mirroring mokapot's tie-grouping in `qvalues.py`.
+- `tdc_qvalues()` gives PSMs with identical scores one shared q-value. Ties are grouped and
+  each block gets one FDR/q-value from the full target/decoy counts, as in mokapot's
+  `qvalues.py`. Previously, q-values within a tie depended on PSM order.
 
 ### Changed
 
-- Rewrote the README About section: ristretto is now described as a lean,
-  dependency-light reimplementation of the Percolator algorithm, noting the
-  scikit-learn dependency shared with mokapot and the leanness/flexibility
-  tradeoff.
-- Renamed "Käll loop" to "refinement loop" throughout logging and
-  docstrings, keeping one Käll et al. (2007) citation per file instead of
-  repeating the attribution on every log line.
+- Rewrote the README About section.
+- Renamed "Käll loop" to "refinement loop" in logging and docstrings.
 - Per-fold, spectrum competition, q-value/PEP, and rollup log messages moved
   from info to debug level; only the top-level "Rescoring N PSMs..." summary
   stays at info.
